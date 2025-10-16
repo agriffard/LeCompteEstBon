@@ -1,0 +1,190 @@
+@page "/"
+@using LeCompteEstBon.Models
+@using LeCompteEstBon.Services
+@inject DrawService DrawService
+@inject SolverService SolverService
+
+<PageTitle>Le Compte est Bon</PageTitle>
+
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Le Compte est Bon</h1>
+    
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <!-- Target Display -->
+            @if (_gameState.Target > 0)
+            {
+                <div class="text-center mb-4">
+                    <h2>Cible</h2>
+                    <div class="target-display">
+                        @_gameState.Target
+                    </div>
+                </div>
+            }
+            
+            <!-- Control Buttons -->
+            <div class="text-center mb-4">
+                <button class="btn btn-primary btn-lg me-2" @onclick="NewDraw">
+                    🎲 Tirage aléatoire
+                </button>
+                
+                @if (_gameState.Numbers.Any())
+                {
+                    <button class="btn btn-success btn-lg me-2" @onclick="Solve" disabled="@_solving">
+                        @if (_solving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                            <text>Résolution...</text>
+                        }
+                        else
+                        {
+                            <text>🔍 Résoudre</text>
+                        }
+                    </button>
+                    
+                    <button class="btn btn-secondary btn-lg" @onclick="Reset">
+                        🔄 Réinitialiser
+                    </button>
+                }
+            </div>
+            
+            <!-- Numbers Display -->
+            @if (_gameState.Numbers.Any())
+            {
+                <div class="numbers-container mb-4">
+                    <h3>Nombres disponibles</h3>
+                    <div class="numbers-grid">
+                        @foreach (var number in _gameState.Numbers)
+                        {
+                            <div class="number-tile">
+                                @number
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            
+            <!-- Solution Display -->
+            @if (_gameState.BestSolution != null)
+            {
+                <div class="solution-container mb-4">
+                    <h3>Solution trouvée</h3>
+                    <div class="alert alert-@(_gameState.BestSolution.Distance == 0 ? "success" : "warning")">
+                        <p><strong>Résultat:</strong> @_gameState.BestSolution.Result</p>
+                        <p><strong>Distance:</strong> @_gameState.BestSolution.Distance</p>
+                        
+                        @if (_gameState.BestSolution.Steps.Any())
+                        {
+                            <p><strong>Étapes:</strong></p>
+                            <ol>
+                                @foreach (var step in _gameState.BestSolution.Steps)
+                                {
+                                    <li>@step</li>
+                                }
+                            </ol>
+                        }
+                    </div>
+                </div>
+            }
+            
+            <!-- Help Section -->
+            <div class="help-section mt-4">
+                <h4>Comment jouer ?</h4>
+                <ul>
+                    <li>Cliquez sur "Tirage aléatoire" pour générer 7 nombres et une cible</li>
+                    <li>Utilisez les nombres et les opérations (+, −, ×, ÷) pour atteindre la cible</li>
+                    <li>Chaque nombre ne peut être utilisé qu'une seule fois</li>
+                    <li>Cliquez sur "Résoudre" pour voir une solution automatique</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .target-display {
+        font-size: 4rem;
+        font-weight: bold;
+        color: #0066cc;
+        padding: 20px;
+        border: 3px solid #0066cc;
+        border-radius: 10px;
+        display: inline-block;
+        min-width: 200px;
+    }
+    
+    .numbers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 15px;
+        margin-top: 15px;
+    }
+    
+    .number-tile {
+        background: linear-gradient(145deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-size: 2rem;
+        font-weight: bold;
+        padding: 30px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+    }
+    
+    .number-tile:hover {
+        transform: scale(1.05);
+    }
+    
+    .solution-container {
+        animation: fadeIn 0.5s;
+    }
+    
+    .help-section {
+        padding: 20px;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+    }
+    
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+@code {
+    private GameState _gameState = new();
+    private bool _solving = false;
+    
+    private void NewDraw()
+    {
+        var (numbers, target) = DrawService.GenerateRandomDraw();
+        _gameState = new GameState
+        {
+            Numbers = numbers,
+            Target = target
+        };
+    }
+    
+    private async Task Solve()
+    {
+        if (!_gameState.Numbers.Any()) return;
+        
+        _solving = true;
+        StateHasChanged();
+        
+        // Run solver in background to keep UI responsive
+        await Task.Run(() =>
+        {
+            _gameState.BestSolution = SolverService.Solve(_gameState.Numbers, _gameState.Target);
+        });
+        
+        _solving = false;
+        StateHasChanged();
+    }
+    
+    private void Reset()
+    {
+        _gameState = new GameState();
+    }
+}
